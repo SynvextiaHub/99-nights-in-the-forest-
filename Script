@@ -1,10 +1,10 @@
 --[[
     Synvextia Hub 99 Nights
-    Version: 1.6.57 (Final + Credits)
+    Version: 1.6.58 (Final + Credits Updated)
     Fully fixed and optimized.
 ]]
 
-local Version = "1.6.57"
+local Version = "1.6.58"
 
 -- Fallback for getgenv()
 local globalEnv = getgenv() or {}
@@ -1163,13 +1163,30 @@ Tabs.Esp:Toggle({ Title = "Food ESP", Default = false, Callback = function(state
 Tabs.Esp:Toggle({ Title = "Scrappable ESP", Default = false, Callback = function(state) toggleCategoryESP("Scrappable", state, ESPisScrappable) end })
 Tabs.Esp:Toggle({ Title = "Other ESP", Default = false, Callback = function(state) toggleCategoryESP("Other", state) end })
 
--- Credits Tab
+-- Credits Tab (updated)
 Tabs.Credits:Divider()
 Tabs.Credits:Paragraph({
     Title = "Made by",
-    Desc = "jiyansu and zxqwo",
+    Desc = "Jay and Zyro",
     Color = "Cyan",
     Locked = false
+})
+Tabs.Credits:Divider()
+Tabs.Credits:Button({
+    Title = "YouTube Channel",
+    Description = "Click to copy YouTube link",
+    Callback = function()
+        copyToClipboard("https://www.youtube.com/@J%C3%A1%C3%BD-r2v4y")
+        WindUI:Notify({ Title = "Copied!", Content = "YouTube link copied to clipboard.", Duration = 3 })
+    end
+})
+Tabs.Credits:Button({
+    Title = "TikTok Profile",
+    Description = "Click to copy TikTok link",
+    Callback = function()
+        copyToClipboard("https://www.tiktok.com/@njdhd65?_r=1&_t=ZT-96K9WpVdMBp")
+        WindUI:Notify({ Title = "Copied!", Content = "TikTok link copied to clipboard.", Duration = 3 })
+    end
 })
 Tabs.Credits:Divider()
 Tabs.Credits:Button({
