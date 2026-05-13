@@ -1,6 +1,6 @@
 --[[
     Synvextia Hub 99 Nights
-    Version: 1.6.57 (Final + Credits)
+    Version: 1.6.57 (Final + Credits + Fixes)
     Fully fixed and optimized.
 ]]
 
@@ -550,16 +550,26 @@ Tabs.Teleport:Button({ Title = "Tp to Stronghold", Callback = function()
     end
 end })
 
--- Bring Tab
+-- Bring Tab (FIXED)
 Tabs.Bring:Button({ Title = "Open Chests", Callback = function()
     task.spawn(function()
         while true do
-            local chests = workspace:FindFirstChild("Items")
-            if chests then
-                for _, chest in ipairs(chests:GetChildren()) do
-                    if chest:IsA("Model") and chest.Name:match("^Item Chest%d*$") then
+            local itemsContainer = workspace:FindFirstChild("Items")
+            if itemsContainer then
+                for _, chest in ipairs(itemsContainer:GetChildren()) do
+                    if chest:IsA("Model") and chest.Name:lower():find("chest") then
                         local prompt = chest:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if prompt then pcall(fireproximityprompt, prompt, 3) end
+                        if prompt then
+                            pcall(function()
+                                if fireproximityprompt then
+                                    fireproximityprompt(prompt, 3)
+                                elseif prompt:IsA("ProximityPrompt") then
+                                    prompt:InputHoldBegin()
+                                    task.wait(0.1)
+                                    prompt:InputHoldEnd()
+                                end
+                            end)
+                        end
                     end
                 end
             end
@@ -569,11 +579,17 @@ Tabs.Bring:Button({ Title = "Open Chests", Callback = function()
 end })
 
 local function bringByName(name)
-    for _, item in ipairs(workspace.Items:GetChildren()) do
+    local itemsContainer = workspace:FindFirstChild("Items")
+    if not itemsContainer then return end
+    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    for _, item in ipairs(itemsContainer:GetChildren()) do
         if item.Name:lower():find(name:lower()) then
             local part = item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-            if part and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                part.CFrame = LP.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            if part then
+                pcall(function()
+                    part.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
+                end)
             end
         end
     end
@@ -593,16 +609,20 @@ local BRING_OPTIONS = {
 
 local BRING_CALLBACKS = {}
 BRING_CALLBACKS["Bring Everything"] = function()
-    for _, item in ipairs(workspace.Items:GetChildren()) do
+    local itemsContainer = workspace:FindFirstChild("Items")
+    if not itemsContainer then return end
+    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    for _, item in ipairs(itemsContainer:GetChildren()) do
         local part = item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-        if part and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-            part.CFrame = LP.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+        if part then
+            pcall(function() part.CFrame = hrp.CFrame + Vector3.new(0, 3, 0) end)
         end
     end
 end
 BRING_CALLBACKS["Auto Cook Meat"] = function()
     local campfirePos = Vector3.new(1.87, 4.33, -3.67)
-    for _, item in pairs(workspace.Items:GetChildren()) do
+    for _, item in pairs(workspace:FindFirstChild("Items") or {}) do
         if item.Name:lower():find("meat") then
             local part = item:FindFirstChildWhichIsA("BasePart") or item
             if part then part.CFrame = CFrame.new(campfirePos + Vector3.new(math.random(-2,2), 0.5, math.random(-2,2))) end
@@ -612,7 +632,7 @@ end
 BRING_CALLBACKS["Bring Logs"] = function()
     local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    for _, item in pairs(workspace.Items:GetChildren()) do
+    for _, item in pairs(workspace:FindFirstChild("Items") or {}) do
         if item.Name:lower():find("log") and item:IsA("Model") then
             local main = item:FindFirstChildWhichIsA("BasePart")
             if main then main.CFrame = root.CFrame * CFrame.new(math.random(-5,5), 0, math.random(-5,5)) end
@@ -895,46 +915,54 @@ task.spawn(function()
     end
 end)
 
--- Misc Tab
+-- Misc Tab (FIXED Speed & Jump with CharacterAdded)
 globalEnv.speedEnabled = false
 globalEnv.speedValue = 28
+
+local function applySpeed()
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if hum and globalEnv.speedEnabled then
+        hum.WalkSpeed = globalEnv.speedValue
+    end
+end
+
+local function applyJump()
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if hum and globalEnv.jpEnabled then
+        hum.JumpPower = globalEnv.jpValue
+        if hum:GetAttribute("UseJumpPower") ~= nil then
+            hum:SetAttribute("UseJumpPower", true)
+            hum.JumpHeight = (globalEnv.jpValue / 50) * 7.2
+        end
+    end
+end
+
+LP.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    applySpeed()
+    applyJump()
+end)
+
 Tabs.Misc:Toggle({ Title = "Speed Hack", Default = false, Callback = function(v)
     globalEnv.speedEnabled = v
-    local char = LP.Character or LP.CharacterAdded:Wait()
-    local hum = char:FindFirstChild("Humanoid")
-    if hum then hum.WalkSpeed = v and globalEnv.speedValue or 16 end
+    applySpeed()
 end })
 Tabs.Misc:Slider({ Title = "Speed Value", Value = {Min = 16, Max = 600, Default = 28}, Step = 1, Callback = function(val)
     globalEnv.speedValue = val
-    if globalEnv.speedEnabled then
-        local hum = LP.Character and LP.Character:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed = val end
-    end
+    if globalEnv.speedEnabled then applySpeed() end
 end })
 
 globalEnv.jpEnabled = false
 globalEnv.jpValue = 60
 Tabs.Misc:Toggle({ Title = "Jump Boost", Default = false, Callback = function(v)
     globalEnv.jpEnabled = v
-    local char = LP.Character or LP.CharacterAdded:Wait()
-    local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        hum.JumpPower = v and globalEnv.jpValue or 50
-        if hum:GetAttribute("UseJumpPower") ~= nil then
-            hum:SetAttribute("UseJumpPower", true)
-            hum.JumpHeight = v and (globalEnv.jpValue / 50) * 7.2 or 7.2
-        end
-    end
+    applyJump()
 end })
 Tabs.Misc:Slider({ Title = "Jump Power", Value = {Min = 50, Max = 300, Default = 60}, Step = 1, Callback = function(val)
     globalEnv.jpValue = val
-    if globalEnv.jpEnabled then
-        local hum = LP.Character and LP.Character:FindFirstChild("Humanoid")
-        if hum then
-            hum.JumpPower = val
-            if hum:GetAttribute("UseJumpPower") then hum.JumpHeight = (val / 50) * 7.2 end
-        end
-    end
+    if globalEnv.jpEnabled then applyJump() end
 end })
 
 local fullbrightActive = false
@@ -1050,13 +1078,13 @@ Tabs.Misc:Button({ Title = "FPS Boost", Callback = function()
     notify("FPS Boost Applied")
 end })
 
--- ESP Tab
+-- ESP Tab (FIXED)
 local espConnections = {}
 local ESP_ITEMS = {
     Health = {"Bandage"},
-    Fuel = {"Fuel Canister", "Coal", "Sapling", "Log"},
-    Food = {"Carrot", "Apple", "Berry"},
-    Scrappable = {"Alpha Wolf Corpse", "Wolf Corpse"},
+    Fuel = {"Fuel Canister", "Coal", "Sapling", "Log", "Oil Barrel", "Biofuel"},
+    Food = {"Carrot", "Apple", "Berry", "Cake", "Pumpkin", "Corn", "Ribs", "Meat? Sandwich"},
+    Scrappable = {"Alpha Wolf Corpse", "Wolf Corpse", "UFO Junk", "Sheet Metal", "Bolt", "Broken Fan", "UFO Component", "Broken Radio", "Tyre", "Broken Microwave", "Old Car Engine", "Metal Chair", "Cultist Prototype", "Cultist Experiment", "Washing Machine", "UFO Scrap"},
     Other = {"Revolver Ammo", "Lost Child", "Lost Child2", "Lost Child3", "Item Chest", "Rifle Ammo", "Rifle", "Ammo", "Revolver", "Leather Body", "Iron Body"}
 }
 
@@ -1065,82 +1093,83 @@ local function createESPLabel(parent)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "ESP_Label"
     billboard.Adornee = parent
-    billboard.Size = UDim2.new(0,50,0,50)
-    billboard.StudsOffset = Vector3.new(0,3,0)
+    billboard.Size = UDim2.new(0, 80, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = parent
     local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1,0,1,0)
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
     textLabel.BackgroundTransparency = 1
     textLabel.Text = parent.Name
-    textLabel.TextColor3 = Color3.fromRGB(25,25,112)
-    textLabel.TextStrokeTransparency = 0.5
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextStrokeTransparency = 0
     textLabel.TextScaled = true
-    textLabel.Font = Font.fromEnum(Enum.Font.SourceSansBold)
+    textLabel.Font = Enum.Font.SourceSansBold
     textLabel.Parent = billboard
 end
 
 local function createESPHighlight(item)
     if item:FindFirstChild("Highlight") then return end
+    local basePart = item:IsA("BasePart") and item or item:FindFirstChildWhichIsA("BasePart")
+    if not basePart then return end
     local highlight = Instance.new("Highlight")
     highlight.Name = "Highlight"
-    highlight.Parent = item
-    highlight.Adornee = item
+    highlight.Parent = basePart
+    highlight.Adornee = basePart
     highlight.FillTransparency = 0.5
-    highlight.OutlineColor = Color3.fromRGB(255,255,255)
-    if item.Name == "Bandage" then highlight.FillColor = Color3.fromRGB(0,0,0)
-    elseif item.Name == "Log" then highlight.FillColor = Color3.fromRGB(139,69,19)
-    elseif item.Name == "Coal" then highlight.FillColor = Color3.fromRGB(50,50,50)
-    elseif item.Name == "Fuel Canister" then highlight.FillColor = Color3.fromRGB(255,0,0)
-    elseif item.Name == "Revolver Ammo" then highlight.FillColor = Color3.fromRGB(255,215,0) end
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    if item.Name == "Bandage" then highlight.FillColor = Color3.fromRGB(0, 255, 0)
+    elseif item.Name == "Log" then highlight.FillColor = Color3.fromRGB(139, 69, 19)
+    elseif item.Name == "Coal" then highlight.FillColor = Color3.fromRGB(50, 50, 50)
+    elseif item.Name == "Fuel Canister" then highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    elseif item.Name == "Revolver Ammo" then highlight.FillColor = Color3.fromRGB(255, 215, 0)
+    else highlight.FillColor = Color3.fromRGB(0, 120, 255) end
 end
 
 local function removeESP(item)
-    if item:FindFirstChild("Highlight") then item.Highlight:Destroy() end
-    if item:FindFirstChild("ESP_Label") then item.ESP_Label:Destroy() end
+    for _, descendant in ipairs(item:GetDescendants()) do
+        if descendant.Name == "Highlight" then descendant:Destroy() end
+        if descendant.Name == "ESP_Label" then descendant:Destroy() end
+    end
 end
 
 local function toggleCategoryESP(category, enabled, customCheck)
     local items = ESP_ITEMS[category]
+    local function shouldTag(instance)
+        return tableFind(items, instance.Name) or (customCheck and customCheck(instance))
+    end
+    local function tagInstance(instance)
+        if shouldTag(instance) then
+            createESPHighlight(instance)
+            createESPLabel(instance)
+        end
+    end
+    local function untagInstance(instance)
+        if shouldTag(instance) then
+            removeESP(instance)
+        end
+    end
+    local itemsContainer = workspace:FindFirstChild("Items")
+    local characters = workspace:FindFirstChild("Characters")
     if enabled then
-        for _, item in pairs(ItemsFolder:GetChildren()) do
-            if tableFind(items, item.Name) or (customCheck and customCheck(item)) then
-                createESPHighlight(item)
-                createESPLabel(item)
-            end
+        if itemsContainer then
+            for _, item in ipairs(itemsContainer:GetChildren()) do tagInstance(item) end
         end
-        for _, item in pairs(Workspace.Characters:GetChildren()) do
-            if tableFind(items, item.Name) or (customCheck and customCheck(item)) then
-                createESPHighlight(item)
-                createESPLabel(item)
-            end
+        if characters then
+            for _, char in ipairs(characters:GetChildren()) do tagInstance(char) end
         end
-        if not espConnections["esp_"..category.."Added"] then
-            espConnections["esp_"..category.."Added"] = ItemsFolder.ChildAdded:Connect(function(item)
-                if tableFind(items, item.Name) or (customCheck and customCheck(item)) then
-                    createESPHighlight(item)
-                    createESPLabel(item)
-                end
-            end)
+        if itemsContainer and not espConnections["esp_"..category.."Added"] then
+            espConnections["esp_"..category.."Added"] = itemsContainer.ChildAdded:Connect(tagInstance)
         end
-        if not espConnections["esp_"..category.."CharAdded"] then
-            espConnections["esp_"..category.."CharAdded"] = Workspace.Characters.ChildAdded:Connect(function(item)
-                if tableFind(items, item.Name) or (customCheck and customCheck(item)) then
-                    createESPHighlight(item)
-                    createESPLabel(item)
-                end
-            end)
+        if characters and not espConnections["esp_"..category.."CharAdded"] then
+            espConnections["esp_"..category.."CharAdded"] = characters.ChildAdded:Connect(tagInstance)
         end
     else
-        for _, item in pairs(ItemsFolder:GetChildren()) do
-            if tableFind(items, item.Name) or (customCheck and customCheck(item)) then
-                removeESP(item)
-            end
+        if itemsContainer then
+            for _, item in ipairs(itemsContainer:GetChildren()) do untagInstance(item) end
         end
-        for _, item in pairs(Workspace.Characters:GetChildren()) do
-            if tableFind(items, item.Name) or (customCheck and customCheck(item)) then
-                removeESP(item)
-            end
+        if characters then
+            for _, char in ipairs(characters:GetChildren()) do untagInstance(char) end
         end
         if espConnections["esp_"..category.."Added"] then
             espConnections["esp_"..category.."Added"]:Disconnect()
@@ -1153,9 +1182,9 @@ local function toggleCategoryESP(category, enabled, customCheck)
     end
 end
 
-local function ESPisFood(item) return item:GetAttribute("RestoreHunger") end
-local function ESPisScrappable(item) return item:GetAttribute("Scrappable") end
-local function ESPisFuel(item) return item:GetAttribute("BurnFuel") end
+local function ESPisFood(item) return item:GetAttribute("RestoreHunger") == true end
+local function ESPisScrappable(item) return item:GetAttribute("Scrappable") == true end
+local function ESPisFuel(item) return item:GetAttribute("BurnFuel") == true end
 
 Tabs.Esp:Toggle({ Title = "Health ESP", Default = false, Callback = function(state) toggleCategoryESP("Health", state) end })
 Tabs.Esp:Toggle({ Title = "Fuel ESP", Default = false, Callback = function(state) toggleCategoryESP("Fuel", state, ESPisFuel) end })
@@ -1163,27 +1192,43 @@ Tabs.Esp:Toggle({ Title = "Food ESP", Default = false, Callback = function(state
 Tabs.Esp:Toggle({ Title = "Scrappable ESP", Default = false, Callback = function(state) toggleCategoryESP("Scrappable", state, ESPisScrappable) end })
 Tabs.Esp:Toggle({ Title = "Other ESP", Default = false, Callback = function(state) toggleCategoryESP("Other", state) end })
 
--- Credits Tab
+-- Credits Tab (FIXED with your YouTube & TikTok)
 Tabs.Credits:Divider()
 Tabs.Credits:Paragraph({
     Title = "Made by",
-    Desc = "jiyansu and zxqwo",
+    Desc = "Jay & Zyro",
     Color = "Cyan",
     Locked = false
 })
 Tabs.Credits:Divider()
 Tabs.Credits:Button({
     Title = "JOIN DISCORD SERVER SYNVEXTIA",
-    Description = "Click To Copy The Discord Server Link For SYNVEXTIA",
+    Description = "Click To Copy The Discord Server Link",
     Callback = function()
         copyToClipboard("discord.gg/nyW9JcqhP")
         WindUI:Notify({ Title = "Copied!", Content = "Discord invite copied to clipboard.", Duration = 3 })
     end
 })
+Tabs.Credits:Button({
+    Title = "SUBSCRIBE ON YOUTUBE",
+    Description = "Click to copy Jay's YouTube link",
+    Callback = function()
+        copyToClipboard("https://www.youtube.com/@J%C3%A1%C3%BD-r2v4y")
+        WindUI:Notify({ Title = "Copied!", Content = "YouTube link copied.", Duration = 3 })
+    end
+})
+Tabs.Credits:Button({
+    Title = "FOLLOW ON TIKTOK",
+    Description = "Click to copy TikTok profile link",
+    Callback = function()
+        copyToClipboard("https://www.tiktok.com/@njdhd65")
+        WindUI:Notify({ Title = "Copied!", Content = "TikTok link copied.", Duration = 3 })
+    end
+})
 Tabs.Credits:Divider()
 Tabs.Credits:Paragraph({
     Title = "PLEASE JOIN THE DISCORD SERVER",
-    Desc = "JOIN SYNVEXTIA DISCORD SERVER. THEY DO HUGE EVENTS AND YOU GET EARLY ACCESS TO SCRIPTS & COMMUNITY. IT WILL HELP US AS THE KEY IS KEYLESS AND WE GET TO HEAR SUGGESTIONS AND REPORTS ABOUT SCRIPTS AND THEY ALSO MADE THIS SCRIPT",
+    Desc = "Join Synvextia Discord for early access, events, and support. Keyless script – your feedback helps us improve!",
     Color = "Green",
     Locked = false
 })
